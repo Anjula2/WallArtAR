@@ -106,6 +106,25 @@ let renderer, scene, camera, controls;
 let wallMesh, wallArtGroup, shadowPlane;
 let spotLight, ambientLight, fillLight;
 
+// Device Orientation variables for parallax camera rotations in AR
+let initialOrientation = { beta: null, gamma: null, alpha: null };
+let currentOrientation = { beta: 0, gamma: 0, alpha: 0 };
+let hasOrientationData = false;
+
+function handleOrientation(event) {
+    if (initialOrientation.beta === null && event.beta !== null) {
+        initialOrientation.beta = event.beta;
+        initialOrientation.gamma = event.gamma;
+        initialOrientation.alpha = event.alpha;
+    }
+    if (event.beta !== null) {
+        currentOrientation.beta = event.beta;
+        currentOrientation.gamma = event.gamma;
+        currentOrientation.alpha = event.alpha;
+        hasOrientationData = true;
+    }
+}
+
 // Smooth camera target values for animations
 const cameraTarget = {
     position: new THREE.Vector3(0, 0, 2.2),
@@ -657,7 +676,22 @@ function animate() {
     if (!state.arMode) {
         controls.update();
     } else {
-        camera.lookAt(0, 0, 0); // Force camera to look at the artwork center, bypassing OrbitControls override
+        // Apply pseudo-AR perspective parallax based on device gyroscope orientation values
+        if (hasOrientationData) {
+            const dBeta = currentOrientation.beta - initialOrientation.beta;
+            const dGamma = currentOrientation.gamma - initialOrientation.gamma;
+            
+            // Map degrees difference to radians, scaled down for realistic perspective depth
+            const targetRotX = THREE.MathUtils.degToRad(dBeta) * 0.45;
+            const targetRotY = -THREE.MathUtils.degToRad(dGamma) * 0.45;
+            
+            // Interpolate rotations smoothly (lerp)
+            camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, targetRotX, 0.1);
+            camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, targetRotY, 0.1);
+            camera.rotation.z = 0; // Lock z roll to keep art parallel to floor line
+        } else {
+            camera.lookAt(0, 0, 0); // Fallback to centering on origin
+        }
     }
     
     renderer.render(scene, camera);
@@ -891,6 +925,22 @@ function initUI() {
             return;
         }
 
+        // Request DeviceOrientation permission dynamically inside click handler for iOS Safari
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        window.addEventListener('deviceorientation', handleOrientation);
+                    }
+                })
+                .catch(err => {
+                    console.warn("DeviceOrientation permission rejected/failed:", err);
+                });
+        } else {
+            // Android or desktop browsers
+            window.addEventListener('deviceorientation', handleOrientation);
+        }
+
         document.getElementById('upload-status').style.display = 'block';
 
         // Prompt camera with back camera query if mobile
@@ -959,6 +1009,11 @@ function initUI() {
         }
         video.style.display = 'none';
         video.srcObject = null;
+
+        // Clean up DeviceOrientation tracking listeners
+        window.removeEventListener('deviceorientation', handleOrientation);
+        initialOrientation = { beta: null, gamma: null, alpha: null };
+        hasOrientationData = false;
 
         state.arMode = false;
         document.body.classList.remove('ar-mode-active');
