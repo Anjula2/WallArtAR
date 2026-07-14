@@ -67,6 +67,11 @@ canvas {
     height: 100%;
     display: block;
     outline: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2; /* Render on top of background camera feed (which has z-index: 1) */
+    pointer-events: auto;
 }
 
 /* Camera Elements for AR Fallback */
