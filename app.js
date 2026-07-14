@@ -106,24 +106,30 @@ let renderer, scene, camera, controls;
 let wallMesh, wallArtGroup, shadowPlane;
 let spotLight, ambientLight, fillLight;
 
-// Device Orientation variables for parallax camera rotations in AR
+// Device Orientation variables for AR perspective illusion
 let initialOrientation = { beta: null, gamma: null, alpha: null };
-let currentOrientation = { beta: 0, gamma: 0, alpha: 0 };
+let smoothedOrientation = { beta: 0, gamma: 0 };
 let hasOrientationData = false;
 
 function handleOrientation(event) {
-    if (initialOrientation.beta === null && event.beta !== null) {
+    if (event.beta === null || event.gamma === null) return;
+    
+    // Capture the first stable reading as the reference anchor
+    if (initialOrientation.beta === null) {
         initialOrientation.beta = event.beta;
         initialOrientation.gamma = event.gamma;
         initialOrientation.alpha = event.alpha;
+        hasOrientationData = true;
     }
-    if (event.beta !== null) {
+    
+    // Update raw current values
+    if (hasOrientationData) {
         currentOrientation.beta = event.beta;
         currentOrientation.gamma = event.gamma;
         currentOrientation.alpha = event.alpha;
-        hasOrientationData = true;
     }
 }
+let currentOrientation = { beta: 0, gamma: 0, alpha: 0 };
 
 // Smooth camera target values for animations
 const cameraTarget = {
@@ -324,6 +330,18 @@ function rebuildWallArt() {
             break;
         case 'poster':
             buildPoster();
+            break;
+        case 'shadowbox':
+            buildShadowBox();
+            break;
+        case 'tapestry':
+            buildTapestry();
+            break;
+        case 'neon':
+            buildNeonFrame();
+            break;
+        case 'triptych':
+            buildTriptych();
             break;
     }
 }
@@ -553,6 +571,242 @@ function buildPoster() {
     wallArtGroup.add(mesh);
 }
 
+// 5. Shadow Box — deep float with visible gap shadow
+function buildShadowBox() {
+    const w = state.width;
+    const h = state.height;
+    const boxDepth = 0.055; // 5.5cm deep shadow box
+    const innerGap = 0.012; // 1.2cm inner gap before image
+
+    // Outer box frame (dark matte sides)
+    const outerMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.05 });
+
+    // Left and right sides
+    const sideGeoLR = new THREE.BoxGeometry(boxDepth, h, boxDepth);
+    [-w/2 - boxDepth/2, w/2 + boxDepth/2].forEach(x => {
+        const side = new THREE.Mesh(sideGeoLR, outerMat);
+        side.position.set(x, 0, boxDepth / 2);
+        side.castShadow = true;
+        wallArtGroup.add(side);
+    });
+
+    // Top and bottom sides
+    const sideGeoTB = new THREE.BoxGeometry(w + boxDepth * 2, boxDepth, boxDepth);
+    [h/2 + boxDepth/2, -h/2 - boxDepth/2].forEach(y => {
+        const side = new THREE.Mesh(sideGeoTB, outerMat);
+        side.position.set(0, y, boxDepth / 2);
+        side.castShadow = true;
+        wallArtGroup.add(side);
+    });
+
+    // Artwork printed on a slightly recessed inner plane
+    const artGeo = new THREE.PlaneGeometry(w, h);
+    const artMat = new THREE.MeshStandardMaterial({
+        map: state.texture,
+        roughness: 0.75,
+        metalness: 0.0
+    });
+    const artMesh = new THREE.Mesh(artGeo, artMat);
+    artMesh.position.z = innerGap; // recessed inside the box
+    artMesh.castShadow = false;
+    artMesh.receiveShadow = true;
+    wallArtGroup.add(artMesh);
+
+    // Front opening invisible (open face of box) - just the gap is visible
+    // Backing shadow board at the rear
+    const backGeo = new THREE.BoxGeometry(w + boxDepth * 2, h + boxDepth * 2, 0.005);
+    const backMat = new THREE.MeshBasicMaterial({ color: 0x0a0a0a });
+    const backMesh = new THREE.Mesh(backGeo, backMat);
+    backMesh.position.z = 0.001;
+    backMesh.castShadow = true;
+    wallArtGroup.add(backMesh);
+}
+
+// 6. Tapestry — fabric hang with linen texture
+function buildTapestry() {
+    const w = state.width;
+    const h = state.height;
+
+    // Create fabric weave texture with canvas
+    const weaveCanvas = document.createElement('canvas');
+    weaveCanvas.width = 64;
+    weaveCanvas.height = 64;
+    const wctx = weaveCanvas.getContext('2d');
+    for (let y = 0; y < 64; y++) {
+        for (let x = 0; x < 64; x++) {
+            const v = ((x + y) % 2 === 0) ? 200 : 180;
+            wctx.fillStyle = `rgb(${v},${v-10},${v-20})`;
+            wctx.fillRect(x, y, 1, 1);
+        }
+    }
+    const weaveTex = new THREE.CanvasTexture(weaveCanvas);
+    weaveTex.wrapS = weaveTex.wrapT = THREE.RepeatWrapping;
+    weaveTex.repeat.set(w * 40, h * 40);
+
+    // Image layer
+    const artGeo = new THREE.PlaneGeometry(w, h, 12, 12);
+    // Add subtle fabric drape by displacing vertices
+    const pos = artGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        // Gentle drape: center hangs slightly forward, bottom dips back
+        const drape = 0.012 * Math.cos(Math.PI * (y / (h / 2)) * 0.5);
+        const ripple = Math.sin(x * 8) * 0.003;
+        pos.setZ(i, drape + ripple + 0.003);
+    }
+    artGeo.computeVertexNormals();
+
+    const artMat = new THREE.MeshStandardMaterial({
+        map: state.texture,
+        roughness: 0.9,
+        metalness: 0.0,
+        bumpMap: weaveTex,
+        bumpScale: 0.004
+    });
+    const artMesh = new THREE.Mesh(artGeo, artMat);
+    artMesh.castShadow = true;
+    wallArtGroup.add(artMesh);
+
+    // Hanging rod at top
+    const rodGeo = new THREE.CylinderGeometry(0.008, 0.008, w + 0.08, 12);
+    const rodMat = new THREE.MeshStandardMaterial({ color: 0x5c3d1e, roughness: 0.6, metalness: 0.1 });
+    const rod = new THREE.Mesh(rodGeo, rodMat);
+    rod.rotation.z = Math.PI / 2;
+    rod.position.set(0, h / 2 + 0.012, 0.016);
+    rod.castShadow = true;
+    wallArtGroup.add(rod);
+
+    // Hanging cords left + right
+    [-(w / 2 + 0.02), w / 2 + 0.02].forEach(x => {
+        const cordGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.1, 6);
+        const cord = new THREE.Mesh(cordGeo, rodMat);
+        cord.position.set(x, h / 2 + 0.065, 0.016);
+        wallArtGroup.add(cord);
+    });
+}
+
+// 7. Neon Frame — glowing emissive LED border
+function buildNeonFrame() {
+    const w = state.width;
+    const h = state.height;
+    const tubeR = 0.008; // tube radius
+
+    // Neon glow material — bright emissive
+    const neonMat = new THREE.MeshStandardMaterial({
+        color: 0x00f0ff,
+        emissive: 0x00f0ff,
+        emissiveIntensity: 3.0,
+        roughness: 0.3,
+        metalness: 0.1
+    });
+
+    // Top and bottom tubes
+    const hTubeGeo = new THREE.CylinderGeometry(tubeR, tubeR, w + tubeR * 2, 12);
+    [h/2, -h/2].forEach(y => {
+        const tube = new THREE.Mesh(hTubeGeo, neonMat);
+        tube.rotation.z = Math.PI / 2;
+        tube.position.set(0, y, 0.025);
+        wallArtGroup.add(tube);
+    });
+
+    // Left and right tubes
+    const vTubeGeo = new THREE.CylinderGeometry(tubeR, tubeR, h, 12);
+    [-w/2, w/2].forEach(x => {
+        const tube = new THREE.Mesh(vTubeGeo, neonMat);
+        tube.position.set(x, 0, 0.025);
+        wallArtGroup.add(tube);
+    });
+
+    // Dark backing board
+    const backGeo = new THREE.PlaneGeometry(w + 0.06, h + 0.06);
+    const backMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1.0 });
+    const back = new THREE.Mesh(backGeo, backMat);
+    back.position.z = 0.002;
+    back.castShadow = true;
+    wallArtGroup.add(back);
+
+    // Artwork plane behind glass
+    const artGeo = new THREE.PlaneGeometry(w - 0.02, h - 0.02);
+    const artMat = new THREE.MeshStandardMaterial({
+        map: state.texture,
+        roughness: 0.5,
+        metalness: 0.0
+    });
+    const artMesh = new THREE.Mesh(artGeo, artMat);
+    artMesh.position.z = 0.015;
+    wallArtGroup.add(artMesh);
+
+    // Subtle glow halo as a slightly enlarged emissive plane behind the border
+    const haloGeo = new THREE.PlaneGeometry(w + 0.1, h + 0.1);
+    const haloMat = new THREE.MeshBasicMaterial({
+        color: 0x00f0ff,
+        transparent: true,
+        opacity: 0.06
+    });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.position.z = 0.001;
+    wallArtGroup.add(halo);
+}
+
+// 8. Triptych — 3-panel split display
+function buildTriptych() {
+    const totalW = state.width;
+    const h = state.height;
+    const gap = 0.025; // 2.5cm gap between panels
+    const panels = 3;
+    const panelW = (totalW - gap * (panels - 1)) / panels;
+    const frameW = 0.018;
+    const frameD = 0.032;
+
+    const frameMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        roughness: 0.8,
+        metalness: 0.1
+    });
+
+    for (let i = 0; i < panels; i++) {
+        const xOffset = (i - 1) * (panelW + gap); // -1, 0, +1 centered
+
+        // Texture UV offset to show a different third of the image per panel
+        const artGeo = new THREE.PlaneGeometry(panelW, h);
+        // Shift UV coordinates per panel slice
+        const uvAttr = artGeo.attributes.uv;
+        for (let j = 0; j < uvAttr.count; j++) {
+            const u = uvAttr.getX(j);
+            // Map from [0,1] to [i/3, (i+1)/3]
+            uvAttr.setX(j, (i + u) / panels);
+        }
+        uvAttr.needsUpdate = true;
+
+        const artMat = new THREE.MeshStandardMaterial({
+            map: state.texture,
+            roughness: 0.65,
+            metalness: 0.0
+        });
+        const artMesh = new THREE.Mesh(artGeo, artMat);
+        artMesh.position.set(xOffset, 0, 0.012);
+        artMesh.castShadow = true;
+        wallArtGroup.add(artMesh);
+
+        // Thin frame border for each panel
+        const fSideGeo = new THREE.BoxGeometry(frameW, h + frameW * 2, frameD);
+        [-panelW/2 - frameW/2, panelW/2 + frameW/2].forEach(fx => {
+            const fSide = new THREE.Mesh(fSideGeo, frameMat);
+            fSide.position.set(xOffset + fx, 0, frameD / 2);
+            fSide.castShadow = true;
+            wallArtGroup.add(fSide);
+        });
+        const fTopGeo = new THREE.BoxGeometry(panelW, frameW, frameD);
+        [h/2 + frameW/2, -h/2 - frameW/2].forEach(fy => {
+            const fTop = new THREE.Mesh(fTopGeo, frameMat);
+            fTop.position.set(xOffset, fy, frameD / 2);
+            fTop.castShadow = true;
+            wallArtGroup.add(fTop);
+        });
+    }
+}
+
 // Load Image presets or uploaded files
 function loadPresetImage(url) {
     state.imageUrl = url;
@@ -676,22 +930,31 @@ function animate() {
     if (!state.arMode) {
         controls.update();
     } else {
-        // Apply pseudo-AR perspective parallax based on device gyroscope orientation values
+        // In AR mode: rotate the wallArtGroup (not camera) for stable parallax perspective
+        // The camera stays at a fixed position — the art tilts slightly to simulate perspective
         if (hasOrientationData) {
-            const dBeta = currentOrientation.beta - initialOrientation.beta;
-            const dGamma = currentOrientation.gamma - initialOrientation.gamma;
+            const dBeta  = currentOrientation.beta  - initialOrientation.beta;   // up/down tilt
+            const dGamma = currentOrientation.gamma - initialOrientation.gamma;  // left/right tilt
             
-            // Map degrees difference to radians, scaled down for realistic perspective depth
-            const targetRotX = THREE.MathUtils.degToRad(dBeta) * 0.45;
-            const targetRotY = -THREE.MathUtils.degToRad(dGamma) * 0.45;
+            // Smooth/low-pass filter the raw sensor data to reduce jitter
+            smoothedOrientation.beta  = smoothedOrientation.beta  * 0.85 + dBeta  * 0.15;
+            smoothedOrientation.gamma = smoothedOrientation.gamma * 0.85 + dGamma * 0.15;
             
-            // Interpolate rotations smoothly (lerp)
-            camera.rotation.x = THREE.MathUtils.lerp(camera.rotation.x, targetRotX, 0.1);
-            camera.rotation.y = THREE.MathUtils.lerp(camera.rotation.y, targetRotY, 0.1);
-            camera.rotation.z = 0; // Lock z roll to keep art parallel to floor line
-        } else {
-            camera.lookAt(0, 0, 0); // Fallback to centering on origin
+            // Clamp tilt range so art doesn't flip (max ±35 degrees total tilt)
+            const clampedBeta  = Math.max(-35, Math.min(35, smoothedOrientation.beta));
+            const clampedGamma = Math.max(-35, Math.min(35, smoothedOrientation.gamma));
+            
+            // Apply subtle rotation to the wallArtGroup — art anchored, camera fixed
+            const targetX = THREE.MathUtils.degToRad(clampedBeta)  * 0.18;
+            const targetY = THREE.MathUtils.degToRad(clampedGamma) * 0.18;
+            
+            wallArtGroup.rotation.x = THREE.MathUtils.lerp(wallArtGroup.rotation.x, targetX, 0.12);
+            wallArtGroup.rotation.y = THREE.MathUtils.lerp(wallArtGroup.rotation.y, targetY, 0.12);
         }
+        
+        // Keep camera fixed pointing forward at the art center (no camera rotation at all)
+        camera.position.set(0, 0, 1.8);
+        camera.lookAt(0, 0, 0);
     }
     
     renderer.render(scene, camera);
