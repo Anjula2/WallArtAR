@@ -1,0 +1,790 @@
+/* Core Stylesheet for WallArt AR Viewer */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --bg-main: #0B0F19;
+    --bg-panel: rgba(17, 24, 39, 0.7);
+    --border-light: rgba(255, 255, 255, 0.08);
+    --border-active: rgba(212, 175, 55, 0.5); /* Metallic Gold */
+    --accent-gold: #D4AF37;
+    --accent-gold-hover: #F3E5AB;
+    --text-primary: #F3F4F6;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+    --shadow-premium: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body, html {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+input, button, select, textarea, .type-card, .preset-item, .wall-preset-btn, .color-dot, .upload-zone, .segmented-control {
+    -webkit-user-select: auto;
+    user-select: auto;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Outfit', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+}
+
+/* App Layout */
+.app-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    z-index: 10;
+}
+
+/* 3D Canvas Container */
+#canvas-container {
+    flex: 1;
+    height: 100%;
+    position: relative;
+    background: radial-gradient(circle at center, #1E293B 0%, #0F172A 70%, #020813 100%);
+    transition: var(--transition-smooth);
+}
+
+canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    outline: none;
+}
+
+/* Camera Elements for AR Fallback */
+#camera-video {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    min-width: 100%;
+    min-height: 100%;
+    width: auto;
+    height: auto;
+    transform: translate(-50%, -50%) scaleX(1); /* 1 for rear camera or overlay */
+    object-fit: cover;
+    z-index: 1;
+    display: none;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: 420px;
+    height: 100%;
+    background: var(--bg-panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-left: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    z-index: 20;
+    transition: var(--transition-smooth);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    padding: 24px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent-gold) 0%, #B8860B 100%);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    font-weight: 700;
+}
+
+.logo-text h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: linear-gradient(to right, #fff 40%, var(--accent-gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.logo-text p {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 2px;
+}
+
+/* Configurator Sections */
+.config-content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    flex: 1;
+}
+
+.config-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-title span.badge {
+    background: rgba(212, 175, 55, 0.1);
+    color: var(--accent-gold);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+/* Upload Dropzone */
+.upload-zone {
+    border: 2px dashed var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    background: rgba(255, 255, 255, 0.02);
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent-gold);
+    background: rgba(212, 175, 55, 0.04);
+}
+
+.upload-icon {
+    font-size: 32px;
+    color: var(--accent-gold);
+    margin-bottom: 12px;
+    transition: transform 0.3s ease;
+}
+
+.upload-zone:hover .upload-icon {
+    transform: translateY(-4px);
+}
+
+.upload-zone h3 {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+.upload-zone p {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.upload-zone input[type="file"] {
+    display: none;
+}
+
+/* Presets Grid */
+.presets-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.preset-item {
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: var(--transition-smooth);
+    position: relative;
+}
+
+.preset-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preset-item:hover {
+    transform: scale(1.05);
+}
+
+.preset-item.active {
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+}
+
+/* Type Grid Selector */
+.types-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.type-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.type-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.type-card.active {
+    background: rgba(212, 175, 55, 0.05);
+    border-color: var(--accent-gold);
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.15);
+}
+
+.type-icon {
+    font-size: 24px;
+    color: var(--text-secondary);
+}
+
+.type-card.active .type-icon {
+    color: var(--accent-gold);
+}
+
+.type-card h3 {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.type-card p {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Style Configuration Panel (Conditional Rendering Areas) */
+.style-options {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.option-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.option-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: space-between;
+}
+
+/* Colors Row */
+.colors-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.color-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: var(--transition-smooth);
+    position: relative;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.color-dot.active {
+    border-color: #fff;
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+}
+
+.color-dot::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%) scale(0.85);
+    background: #000;
+    color: #fff;
+    font-size: 9px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: var(--transition-smooth);
+    box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+}
+
+.color-dot:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+}
+
+/* Sliders */
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-gold);
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background: var(--accent-gold-hover);
+}
+
+.slider-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-gold);
+    min-width: 45px;
+    text-align: right;
+}
+
+/* Segmented Control Buttons */
+.segmented-control {
+    display: flex;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    border: 1px solid var(--border-light);
+}
+
+.segment-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: var(--transition-smooth);
+    font-family: inherit;
+}
+
+.segment-btn.active {
+    background: var(--accent-gold);
+    color: #000;
+    font-weight: 600;
+}
+
+/* Color Wheel / Custom Wall Picker */
+.wall-color-picker {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.wall-presets {
+    display: flex;
+    gap: 6px;
+}
+
+.wall-preset-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.15);
+}
+
+.wall-preset-btn.active {
+    border: 2px solid var(--accent-gold);
+    transform: scale(1.1);
+}
+
+.custom-picker-wrapper {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.custom-picker-wrapper input[type="color"] {
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+}
+
+/* Primary Action Buttons */
+.action-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    border: none;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: var(--transition-smooth);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--accent-gold) 0%, #B8860B 100%);
+    color: #000;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.25);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--accent-gold-hover) 0%, var(--accent-gold) 100%);
+    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-light);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+/* Floating HUD Controls */
+.hud-controls {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-light);
+    padding: 10px 20px;
+    border-radius: 40px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 30;
+    box-shadow: var(--shadow-premium);
+    transition: var(--transition-smooth);
+}
+
+.hud-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hud-btn {
+    background: transparent;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+    font-size: 16px;
+}
+
+.hud-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.hud-btn.active {
+    background: var(--accent-gold);
+    color: #000;
+}
+
+.hud-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border-light);
+}
+
+/* Toast Message */
+.toast-msg {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: rgba(17, 24, 39, 0.9);
+    border: 1px solid var(--accent-gold);
+    color: var(--text-primary);
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toast-msg.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* AR Mode Overlays */
+#ar-overlay-instructions {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: var(--radius-lg);
+    padding: 14px 24px;
+    text-align: center;
+    max-width: 90%;
+    z-index: 40;
+    display: none;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#ar-overlay-instructions h4 {
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: var(--accent-gold);
+}
+
+#ar-overlay-instructions p {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+#ar-exit-btn {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    background: #ef4444;
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    z-index: 50;
+    display: none;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    transition: var(--transition-smooth);
+}
+
+#ar-exit-btn:hover {
+    background: #dc2626;
+    transform: translateY(-2px);
+}
+
+/* Touch Control overlays for AR (Invisible hit listener) */
+#touch-listener {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    display: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+    .app-container {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch; /* Momentum scrolling for the page */
+    }
+    
+    #canvas-container {
+        position: sticky;
+        top: 0;
+        width: 100%;
+        height: 45vh; /* 45% of screen height is sticky preview */
+        min-height: 280px;
+        flex-shrink: 0;
+        z-index: 10;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+    
+    .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        border-left: none;
+        border-top: 1px solid var(--border-light);
+        border-radius: 0;
+        z-index: 5;
+        box-shadow: none;
+        transform: none !important;
+        overflow: visible;
+    }
+    
+    .mobile-drag-handle {
+        display: none !important;
+    }
+    
+    .sidebar-header {
+        padding: 16px 20px;
+        cursor: default;
+    }
+    
+    .config-content {
+        padding: 20px;
+        gap: 24px;
+        padding-bottom: 80px; /* Safe scroll margin for mobile toolbars */
+    }
+    
+    .hud-controls {
+        bottom: 15px; /* Sit inside bottom of sticky canvas */
+        z-index: 15;
+    }
+    
+    /* AR Mode Overrides: full screen overlays */
+    body.ar-mode-active {
+        overflow: hidden;
+    }
+    
+    body.ar-mode-active .app-container {
+        overflow: hidden;
+    }
+    
+    body.ar-mode-active #canvas-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100% !important;
+        z-index: 9999;
+    }
+    
+    body.ar-mode-active #ar-exit-btn {
+        z-index: 10000;
+    }
+    
+    body.ar-mode-active #ar-overlay-instructions {
+        z-index: 10000;
+    }
+}
+
+@media (max-width: 576px) {
+    #canvas-container {
+        height: 40vh;
+        min-height: 240px;
+    }
+    
+    .config-content {
+        padding: 16px;
+        gap: 20px;
+        padding-bottom: 60px;
+    }
+    
+    .hud-controls {
+        padding: 6px 12px;
+        gap: 6px;
+    }
+    
+    .hud-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 13px;
+    }
+    
+    .logo-text h1 {
+        font-size: 18px;
+    }
+}
