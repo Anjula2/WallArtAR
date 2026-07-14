@@ -905,10 +905,8 @@ function onWindowResize() {
     }
 }
 
-// Camera transition interpolation (lerp) inside render loop
+// Camera transition interpolation — called in render loop only when NOT in orbit mode
 function updateCameraTransition() {
-    if (state.cameraPreset === 'orbit') return; // let orbit controls handle it
-    
     // Set target coordinates based on state
     switch (state.cameraPreset) {
         case 'front':
@@ -917,31 +915,33 @@ function updateCameraTransition() {
             cameraTarget.fov = 45;
             break;
         case 'left':
-            cameraTarget.position.set(-1.6, 0.2, 1.6);
-            cameraTarget.lookAt.set(0.2, 0, 0);
+            cameraTarget.position.set(-1.8, 0.2, 1.6);
+            cameraTarget.lookAt.set(0.3, 0, 0);
             cameraTarget.fov = 45;
             break;
         case 'right':
-            cameraTarget.position.set(1.6, 0.2, 1.6);
-            cameraTarget.lookAt.set(-0.2, 0, 0);
+            cameraTarget.position.set(1.8, 0.2, 1.6);
+            cameraTarget.lookAt.set(-0.3, 0, 0);
             cameraTarget.fov = 45;
             break;
         case 'above':
-            cameraTarget.position.set(0, 1.6, 1.4);
-            cameraTarget.lookAt.set(0, -0.1, 0);
-            cameraTarget.fov = 50;
+            cameraTarget.position.set(0, 1.8, 1.4);
+            cameraTarget.lookAt.set(0, 0, 0);
+            cameraTarget.fov = 52;
             break;
+        default:
+            return; // orbit mode — handled by controls.update()
     }
 
-    // Lerp Camera Position - fast 0.12 factor so movement is very noticeable
-    camera.position.lerp(cameraTarget.position, 0.12);
-    
-    // Directly point camera at look target (bypasses OrbitControls entirely)
+    // Lerp position smoothly
+    camera.position.lerp(cameraTarget.position, 0.1);
+
+    // Directly aim camera — NOT via OrbitControls, so there is no override fight
     camera.lookAt(cameraTarget.lookAt);
-    
-    // Update projection matrix if FOV changes
+
+    // FOV transition
     if (Math.abs(camera.fov - cameraTarget.fov) > 0.05) {
-        camera.fov = THREE.MathUtils.lerp(camera.fov, cameraTarget.fov, 0.12);
+        camera.fov = THREE.MathUtils.lerp(camera.fov, cameraTarget.fov, 0.1);
         camera.updateProjectionMatrix();
     }
 }
@@ -950,26 +950,27 @@ function updateCameraTransition() {
 function animate() {
     requestAnimationFrame(animate);
     
-    updateCameraTransition();
-    
     if (!state.arMode) {
-        controls.update();
+        if (state.cameraPreset === 'orbit') {
+            // ONLY update OrbitControls when in orbit/free mode
+            // In all preset modes, controls.update() would fight against our camera.lookAt()
+            controls.update();
+        } else {
+            // Preset camera movement: lerp position and point at target directly
+            updateCameraTransition();
+        }
     } else {
-        // In AR mode: rotate the wallArtGroup (not camera) for stable parallax perspective
-        // The camera stays at a fixed position — the art tilts slightly to simulate perspective
+        // AR mode: art tilts with gyroscope, camera is locked
         if (hasOrientationData) {
-            const dBeta  = currentOrientation.beta  - initialOrientation.beta;   // up/down tilt
-            const dGamma = currentOrientation.gamma - initialOrientation.gamma;  // left/right tilt
+            const dBeta  = currentOrientation.beta  - initialOrientation.beta;
+            const dGamma = currentOrientation.gamma - initialOrientation.gamma;
             
-            // Smooth/low-pass filter the raw sensor data to reduce jitter
             smoothedOrientation.beta  = smoothedOrientation.beta  * 0.85 + dBeta  * 0.15;
             smoothedOrientation.gamma = smoothedOrientation.gamma * 0.85 + dGamma * 0.15;
             
-            // Clamp tilt range so art doesn't flip (max ±35 degrees total tilt)
             const clampedBeta  = Math.max(-35, Math.min(35, smoothedOrientation.beta));
             const clampedGamma = Math.max(-35, Math.min(35, smoothedOrientation.gamma));
             
-            // Apply subtle rotation to the wallArtGroup — art anchored, camera fixed
             const targetX = THREE.MathUtils.degToRad(clampedBeta)  * 0.18;
             const targetY = THREE.MathUtils.degToRad(clampedGamma) * 0.18;
             
@@ -977,7 +978,6 @@ function animate() {
             wallArtGroup.rotation.y = THREE.MathUtils.lerp(wallArtGroup.rotation.y, targetY, 0.12);
         }
         
-        // Keep camera fixed pointing forward at the art center (no camera rotation at all)
         camera.position.set(0, 0, 1.8);
         camera.lookAt(0, 0, 0);
     }
@@ -1166,46 +1166,45 @@ function initUI() {
     });
 
     // 6. Camera View HUD Controls
-    document.querySelectorAll('.view-angle-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            if (state.arMode) return; // Ignore angle buttons in AR mode
-            
-            document.querySelectorAll('.view-angle-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            state.cameraPreset = btn.dataset.angle;
-            
+    document.querySelectorAll('.view-angle-btn').forEach(function(hudBtn) {
+        hudBtn.addEventListener('click', function() {
+            if (state.arMode) return;
+            document.querySelectorAll('.view-angle-btn').forEach(function(b) { b.classList.remove('active'); });
+            hudBtn.classList.add('active');
+            state.cameraPreset = hudBtn.dataset.angle;
             if (state.cameraPreset === 'orbit') {
                 controls.enabled = true;
-                // Restore OrbitControls to current camera target so it doesn't snap
                 controls.target.set(0, 0, 0);
                 controls.update();
             } else {
                 controls.enabled = false;
-                
-                // Immediately snap camera partway toward target so the motion is visible
-                let snapPos, snapLookAt;
-                switch (state.cameraPreset) {
-                    case 'front': snapPos = new THREE.Vector3(0, 0, 2.2);      snapLookAt = new THREE.Vector3(0, 0, 0); break;
-                    case 'left':  snapPos = new THREE.Vector3(-1.6, 0.2, 1.6); snapLookAt = new THREE.Vector3(0.2, 0, 0); break;
-                    case 'right': snapPos = new THREE.Vector3(1.6, 0.2, 1.6);  snapLookAt = new THREE.Vector3(-0.2, 0, 0); break;
-                    case 'above': snapPos = new THREE.Vector3(0, 1.6, 1.4);    snapLookAt = new THREE.Vector3(0, -0.1, 0); break;
+                var presets = {
+                    'front': { pos: new THREE.Vector3(0,    0,    2.2), look: new THREE.Vector3(0,    0, 0) },
+                    'left':  { pos: new THREE.Vector3(-1.8, 0.2,  1.6), look: new THREE.Vector3(0.3,  0, 0) },
+                    'right': { pos: new THREE.Vector3(1.8,  0.2,  1.6), look: new THREE.Vector3(-0.3, 0, 0) },
+                    'above': { pos: new THREE.Vector3(0,    1.8,  1.4), look: new THREE.Vector3(0,    0, 0) }
+                };
+                var tgt = presets[state.cameraPreset];
+                if (tgt) {
+                    camera.position.lerp(tgt.pos, 0.5);
+                    camera.lookAt(tgt.look);
+                    cameraTarget.position.copy(tgt.pos);
+                    cameraTarget.lookAt.copy(tgt.look);
                 }
-                // Nudge camera 40% of the way to target immediately so user sees motion
-                camera.position.lerp(snapPos, 0.4);
-                camera.lookAt(snapLookAt);
             }
         });
     });
 
     // Lighting HUD switcher
-    document.querySelectorAll('.light-preset-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.light-preset-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.light-preset-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.light-preset-btn').forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             state.lightPreset = btn.dataset.light;
             applyLightPreset();
         });
     });
+
 
     // 7. AR Camera Overlay Mode Activation
     const arBtn = document.getElementById('ar-toggle-btn');
