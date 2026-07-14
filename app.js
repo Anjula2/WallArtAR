@@ -157,18 +157,33 @@ function initThree() {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // Renderer
+    // Renderer - physically based, high quality
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.4;  // Brighter overall scene
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
 
     // Scene
     scene = new THREE.Scene();
+
+    // Subtle environment gradient (acts as soft environment light source)
+    const envCanvas = document.createElement('canvas');
+    envCanvas.width = 2; envCanvas.height = 512;
+    const ectx = envCanvas.getContext('2d');
+    const grad = ectx.createLinearGradient(0, 0, 0, 512);
+    grad.addColorStop(0,    '#c8d8f0'); // Cool sky blue at top
+    grad.addColorStop(0.5,  '#e8e0d8'); // Neutral warm mid
+    grad.addColorStop(1,    '#b0a898'); // Warm grey floor
+    ectx.fillStyle = grad;
+    ectx.fillRect(0, 0, 2, 512);
+    const envTex = new THREE.CanvasTexture(envCanvas);
+    envTex.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = envTex;  // Used for PBR reflections
 
     // Camera
     camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 10);
@@ -178,7 +193,7 @@ function initThree() {
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 + 0.1; // Don't go below the floor
+    controls.maxPolarAngle = Math.PI / 2 + 0.1;
     controls.minDistance = 0.5;
     controls.maxDistance = 5.0;
     controls.target.copy(cameraTarget.lookAt);
@@ -203,23 +218,23 @@ function createWall() {
     const wallGeo = new THREE.PlaneGeometry(10, 8);
     const wallMat = new THREE.MeshStandardMaterial({
         color: state.wallColor,
-        roughness: 0.85,
-        metalness: 0.05,
-        bumpScale: 0.005
+        roughness: 0.92,
+        metalness: 0.0,
+        envMapIntensity: 0.2
     });
 
     // Create custom plaster bump texture dynamically using a small canvas
     const plasterCanvas = document.createElement('canvas');
-    plasterCanvas.width = 128;
-    plasterCanvas.height = 128;
+    plasterCanvas.width = 256;
+    plasterCanvas.height = 256;
     const ctx = plasterCanvas.getContext('2d');
     ctx.fillStyle = '#808080';
-    ctx.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 4000; i++) {
-        const x = Math.random() * 128;
-        const y = Math.random() * 128;
-        const r = Math.random() * 1.5;
-        const color = Math.floor(128 + (Math.random() - 0.5) * 20);
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 8000; i++) {
+        const x = Math.random() * 256;
+        const y = Math.random() * 256;
+        const r = Math.random() * 2.5;
+        const color = Math.floor(128 + (Math.random() - 0.5) * 28);
         ctx.fillStyle = `rgb(${color},${color},${color})`;
         ctx.beginPath();
         ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -228,8 +243,9 @@ function createWall() {
     const bumpTex = new THREE.CanvasTexture(plasterCanvas);
     bumpTex.wrapS = THREE.RepeatWrapping;
     bumpTex.wrapT = THREE.RepeatWrapping;
-    bumpTex.repeat.set(10, 8);
+    bumpTex.repeat.set(12, 10);
     wallMat.bumpMap = bumpTex;
+    wallMat.bumpScale = 0.006;
 
     wallMesh = new THREE.Mesh(wallGeo, wallMat);
     wallMesh.receiveShadow = true;
@@ -238,7 +254,7 @@ function createWall() {
 
     // Floor shadow helper
     const shadowGeo = new THREE.PlaneGeometry(10, 10);
-    const shadowMat = new THREE.ShadowMaterial({ opacity: 0.2 });
+    const shadowMat = new THREE.ShadowMaterial({ opacity: 0.35 });
     shadowPlane = new THREE.Mesh(shadowGeo, shadowMat);
     shadowPlane.rotation.x = -Math.PI / 2;
     shadowPlane.position.y = -4;
@@ -248,28 +264,37 @@ function createWall() {
 
 // Lighting presets config
 function setupLighting() {
-    // Ambient fill
-    ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+    // Ambient fill — soft overall light from environment
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
 
-    // Spotlight directly above the wall art to cast premium shadow downwards
-    spotLight = new THREE.SpotLight(0xffffff, 3.5);
-    spotLight.position.set(0, 1.8, 1.2);
-    spotLight.angle = Math.PI / 4;
-    spotLight.penumbra = 0.8;
-    spotLight.decay = 1.2;
+    // Primary Gallery Spotlight — casts premium soft shadow downward over artwork
+    spotLight = new THREE.SpotLight(0xffffff, 6.0);
+    spotLight.position.set(0.3, 2.2, 1.5);
+    spotLight.target.position.set(0, 0, 0);
+    spotLight.angle = Math.PI / 5.5;
+    spotLight.penumbra = 0.85;  // Very soft shadow edge
+    spotLight.decay = 1.5;
     spotLight.castShadow = true;
-    spotLight.shadow.mapSize.width = 2048;
-    spotLight.shadow.mapSize.height = 2048;
-    spotLight.shadow.camera.near = 0.5;
-    spotLight.shadow.camera.far = 4;
-    spotLight.shadow.bias = -0.0005;
+    spotLight.shadow.mapSize.width  = 4096;  // Hi-res shadow map
+    spotLight.shadow.mapSize.height = 4096;
+    spotLight.shadow.camera.near   = 0.3;
+    spotLight.shadow.camera.far    = 5;
+    spotLight.shadow.bias          = -0.0003;
+    spotLight.shadow.radius        = 6;  // PCF blur radius
     scene.add(spotLight);
+    scene.add(spotLight.target);
 
-    // Soft fill light from the left
-    fillLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    fillLight.position.set(-2, 0.5, 2);
+    // Soft fill light from the left — removes harsh shadows
+    fillLight = new THREE.DirectionalLight(0xfff0e8, 1.0);
+    fillLight.position.set(-2.5, 1.0, 2.5);
+    fillLight.castShadow = false;
     scene.add(fillLight);
+
+    // Rim back-light from the right for 3D depth
+    const rimLight = new THREE.DirectionalLight(0xe8f0ff, 0.4);
+    rimLight.position.set(2.5, -0.5, -1);
+    scene.add(rimLight);
 
     applyLightPreset();
 }
@@ -892,31 +917,31 @@ function updateCameraTransition() {
             cameraTarget.fov = 45;
             break;
         case 'left':
-            cameraTarget.position.set(-1.6, 0.1, 1.6);
-            cameraTarget.lookAt.set(0.1, 0, -0.2);
+            cameraTarget.position.set(-1.6, 0.2, 1.6);
+            cameraTarget.lookAt.set(0.2, 0, 0);
             cameraTarget.fov = 45;
             break;
         case 'right':
-            cameraTarget.position.set(1.6, 0.1, 1.6);
-            cameraTarget.lookAt.set(-0.1, 0, -0.2);
+            cameraTarget.position.set(1.6, 0.2, 1.6);
+            cameraTarget.lookAt.set(-0.2, 0, 0);
             cameraTarget.fov = 45;
             break;
         case 'above':
-            cameraTarget.position.set(0, 1.5, 1.5);
-            cameraTarget.lookAt.set(0, -0.2, 0);
-            cameraTarget.fov = 48;
+            cameraTarget.position.set(0, 1.6, 1.4);
+            cameraTarget.lookAt.set(0, -0.1, 0);
+            cameraTarget.fov = 50;
             break;
     }
 
-    // Lerp Camera Position
-    camera.position.lerp(cameraTarget.position, 0.08);
+    // Lerp Camera Position - fast 0.12 factor so movement is very noticeable
+    camera.position.lerp(cameraTarget.position, 0.12);
     
-    // Lerp Controls Target (lookAt)
-    controls.target.lerp(cameraTarget.lookAt, 0.08);
+    // Directly point camera at look target (bypasses OrbitControls entirely)
+    camera.lookAt(cameraTarget.lookAt);
     
     // Update projection matrix if FOV changes
-    if (Math.abs(camera.fov - cameraTarget.fov) > 0.1) {
-        camera.fov = THREE.MathUtils.lerp(camera.fov, cameraTarget.fov, 0.08);
+    if (Math.abs(camera.fov - cameraTarget.fov) > 0.05) {
+        camera.fov = THREE.MathUtils.lerp(camera.fov, cameraTarget.fov, 0.12);
         camera.updateProjectionMatrix();
     }
 }
@@ -1143,14 +1168,31 @@ function initUI() {
     // 6. Camera View HUD Controls
     document.querySelectorAll('.view-angle-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
+            if (state.arMode) return; // Ignore angle buttons in AR mode
+            
             document.querySelectorAll('.view-angle-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             state.cameraPreset = btn.dataset.angle;
             
             if (state.cameraPreset === 'orbit') {
                 controls.enabled = true;
+                // Restore OrbitControls to current camera target so it doesn't snap
+                controls.target.set(0, 0, 0);
+                controls.update();
             } else {
                 controls.enabled = false;
+                
+                // Immediately snap camera partway toward target so the motion is visible
+                let snapPos, snapLookAt;
+                switch (state.cameraPreset) {
+                    case 'front': snapPos = new THREE.Vector3(0, 0, 2.2);      snapLookAt = new THREE.Vector3(0, 0, 0); break;
+                    case 'left':  snapPos = new THREE.Vector3(-1.6, 0.2, 1.6); snapLookAt = new THREE.Vector3(0.2, 0, 0); break;
+                    case 'right': snapPos = new THREE.Vector3(1.6, 0.2, 1.6);  snapLookAt = new THREE.Vector3(-0.2, 0, 0); break;
+                    case 'above': snapPos = new THREE.Vector3(0, 1.6, 1.4);    snapLookAt = new THREE.Vector3(0, -0.1, 0); break;
+                }
+                // Nudge camera 40% of the way to target immediately so user sees motion
+                camera.position.lerp(snapPos, 0.4);
+                camera.lookAt(snapLookAt);
             }
         });
     });
