@@ -654,7 +654,12 @@ function animate() {
     
     updateCameraTransition();
     
-    controls.update();
+    if (!state.arMode) {
+        controls.update();
+    } else {
+        camera.lookAt(0, 0, 0); // Force camera to look at the artwork center, bypassing OrbitControls override
+    }
+    
     renderer.render(scene, camera);
 }
 
@@ -908,7 +913,8 @@ function initUI() {
             document.body.classList.add('ar-mode-active');
             wallMesh.visible = false;
             shadowPlane.visible = false;
-            renderer.setClearColor(0x000000, 0);
+            renderer.setClearColor(0x000000, 0.0);
+            renderer.setClearAlpha(0.0); // Explicitly clear alpha for iOS Safari compatibility
             
             // Adjust lighting to look natural
             spotLight.intensity = 1.5;
@@ -932,6 +938,12 @@ function initUI() {
             camera.lookAt(0, 0, 0);
 
             rebuildWallArt();
+            
+            // Force WebGL drawing context buffer sizes to expand to full screen immediately
+            onWindowResize();
+            setTimeout(onWindowResize, 100);
+            setTimeout(onWindowResize, 400);
+
             showToast("AR Simulator active. Point camera to a wall.");
         }).catch((err) => {
             document.getElementById('upload-status').style.display = 'none';
